@@ -1,0 +1,35 @@
+{
+  "seed": 20260504,
+  "upscale": 4,
+  "sampling_interval": 4,
+  "output_root": "output/experiments",
+  "train": {
+    "hr_dir": "1_Train_deep_model/train/DIV2K_train_HR",
+    "val_hr_dir": "1_Train_deep_model/val/HR",
+    "degradation": "box_x4",
+    "epochs": 100,
+    "steps_per_epoch": 1000,
+    "batch_size": 32,
+    "crop_size_lr": 48,
+    "lr": 0.0001,
+    "loss": "l1_nonflat_only",
+    "rotation_fusion": "mean_4rot",
+    "flat_rule": "strict_y1_eq_y2_eq_y3_eq_y4"
+  },
+  "ranges": {
+    "full": {
+      "y_definition": "BT.709 full-range",
+      "normalize": "Y/255",
+      "output_min": 0,
+      "output_max": 255
+    },
+    "tv": {
+      "y_definition": "BT.709 TV-range",
+      "normalize": "(Y-16)/219",
+      "output_min": 16,
+      "output_max": 235,
+      "lut_layout": "compact_tv_15_points",
+      "sampling_points": [16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 235]
+    }
+  }
+}
