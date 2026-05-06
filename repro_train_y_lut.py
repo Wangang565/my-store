@@ -260,19 +260,24 @@ def masked_l1(pred, target, lr, upscale):
     return loss, flat_ratio
 
 
-def psnr_uint8(ref, pred):
+def psnr_peak(y_range):
+    return 219.0 if y_range == "tv" else 255.0
+
+
+def psnr_uint8(ref, pred, y_range):
     diff = ref.astype(np.float32) - pred.astype(np.float32)
     mse = float(np.mean(diff * diff))
     if mse <= 1e-12:
         return 99.0
-    return 10.0 * math.log10((255.0 * 255.0) / mse)
+    peak = psnr_peak(y_range)
+    return 10.0 * math.log10((peak * peak) / mse)
 
 
-def validate(model, files, y_range, crop_size_lr, device, max_images=20):
+def validate(model, files, y_range, crop_size_lr, device, max_images=None):
     model.eval()
     psnrs = []
     flat_ratios = []
-    selected = files[:max_images]
+    selected = files if max_images is None or int(max_images) <= 0 else files[: int(max_images)]
     with torch.no_grad():
         for path in selected:
             y_hr_full = rgb_to_y_uint8(load_rgb(path), y_range)
@@ -287,7 +292,7 @@ def validate(model, files, y_range, crop_size_lr, device, max_images=20):
             out_h, out_w = pred.shape[-2], pred.shape[-1]
             target = y_hr[:out_h, :out_w]
             pred_u8 = denormalize_y(pred[0, 0].cpu().numpy(), y_range)
-            psnrs.append(psnr_uint8(target, pred_u8))
+            psnrs.append(psnr_uint8(target, pred_u8, y_range))
             flat_ratios.append(float(strict_flat_mask(lr).float().mean().item()))
     model.train()
     return {
@@ -372,6 +377,7 @@ def main():
     steps_per_epoch = args.steps_per_epoch if args.steps_per_epoch is not None else int(train_cfg["steps_per_epoch"])
     batch_size = args.batch_size if args.batch_size is not None else int(train_cfg["batch_size"])
     crop_size_lr = args.crop_size_lr if args.crop_size_lr is not None else int(train_cfg["crop_size_lr"])
+    val_max_images = train_cfg.get("val_max_images", None)
     seed = int(config["seed"])
     set_seed(seed)
 
@@ -413,6 +419,7 @@ def main():
         "steps_per_epoch": steps_per_epoch,
         "batch_size": batch_size,
         "crop_size_lr": crop_size_lr,
+        "val_max_images": val_max_images,
         "train_images": len(train_files),
         "val_images": len(val_files),
         "config": config,
@@ -463,7 +470,7 @@ def main():
                     )
                 )
 
-        val = validate(model, val_files, args.y_range, crop_size_lr, device)
+        val = validate(model, val_files, args.y_range, crop_size_lr, device, val_max_images)
         avg_loss = float(np.mean(epoch_loss)) if epoch_loss else 0.0
         avg_flat = float(np.mean(epoch_flat)) if epoch_flat else 0.0
         row = {

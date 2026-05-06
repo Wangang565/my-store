@@ -17,9 +17,9 @@ DEFAULT_CONFIG = REPO_ROOT / "experiments" / "configs" / "repro_yuv420_lut.json"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Export absolute Y LUT from repro DirectYNet checkpoint.")
-    parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--range", choices=["full", "tv"], required=True, dest="y_range")
-    parser.add_argument("--output", required=True)
+    parser.add_argument("--checkpoint")
+    parser.add_argument("--range", choices=["full", "tv"], dest="y_range")
+    parser.add_argument("--output")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG))
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--device", default=None)
@@ -143,6 +143,8 @@ def main():
     if args.self_test:
         self_test_sampling()
         return
+    if args.checkpoint is None or args.y_range is None or args.output is None:
+        raise ValueError("--checkpoint, --range, and --output are required unless --self-test is used")
 
     config = load_json(args.config)
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -151,6 +153,9 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     ckpt = torch.load(checkpoint_path, map_location=device)
+    ckpt_range = ckpt.get("range")
+    if ckpt_range is not None and ckpt_range != args.y_range:
+        raise ValueError("Checkpoint range {} does not match requested export range {}".format(ckpt_range, args.y_range))
     upscale = int(ckpt.get("upscale", config.get("upscale", 4)))
     model = DirectYNet(upscale=upscale).to(device)
     model.load_state_dict(ckpt["model_state"])
